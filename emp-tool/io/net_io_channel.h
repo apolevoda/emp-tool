@@ -135,19 +135,28 @@ class NetIO: public IOChannel<NetIO> { public:
 		has_sent = true;
 	}
 
-	void recv_data(void  * data, int len) {
-		if(has_sent)
-			fflush(stream);
-		has_sent = false;
-		int sent = 0;
-		while(sent < len) {
-			int res = fread(sent + (char*)data, 1, len - sent, stream);
-			if (res >= 0)
-				sent += res;
-			else 
-				fprintf(stderr,"error: net_send_data %d\n", res);
-		}
-	}
+        int recv_data(void  * data, int len) {
+            int ret = 0;
+            if(has_sent)
+                fflush(stream);
+            has_sent = false;
+            int sent = 0;
+            clock_t start_time = clock();
+            double time_elapsed;
+            double cps = (double) CLOCKS_PER_SEC;
+            while(sent < len && time_elapsed < MAX_WAIT_TIME) {
+                int res = fread(sent + (char*)data, 1, len - sent, stream);
+                if (res >= 0)
+                    sent += res;
+                else
+                    fprintf(stderr,"error: net_send_data %d\n", res);
+                time_elapsed = (clock() - start_time) / cps;
+            }
+            if(sent == len)
+                ret = 1;
+            return ret;
+        }
+
 };
 /**@}*/
 
@@ -244,27 +253,20 @@ public:
 		has_send = true;
 	}
 
-	int recv_data(void  * data, int len) {
-        int ret = 0;
-        if(has_sent)
-            fflush(stream);
-        has_sent = false;
-        int sent = 0;
-         clock_t start_time = clock();
-         double time_elapsed;
-         double cps = (double) CLOCKS_PER_SEC;
-         while(sent < len && time_elapsed < MAX_WAIT_TIME) {
-            int res = fread(sent + (char*)data, 1, len - sent, stream);
-            if (res >= 0)
-                sent += res;
-            else
-                fprintf(stderr,"error: net_send_data %d\n", res);
-             time_elapsed = (clock() - start_time) / cps;
+        void recv_data(void  * data, int len) {
+            int sent = 0;
+            if(has_send) {
+                flush();
+            }
+            has_send = false;
+            while(sent < len) {
+                int res = s.read_some(boost::asio::buffer(sent + (char *)data, len - sent));
+                if (res >= 0)
+                    sent += res;
+                else
+                    fprintf(stderr,"error: net_send_data %d\n", res);
+            }
         }
-         if(sent == len)
-             ret = 1;
-         return ret;
-     }
 };
 
 }
